@@ -1,21 +1,28 @@
 import logging
 import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
 
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types
 
 from config import GEMINI_API_KEY, GEMINI_MODEL_NAME
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / 'chat_history.db'
 
-logging.getLogger(__name__).debug('Using Gemini model: %s', GEMINI_MODEL_NAME)
+logger = logging.getLogger(__name__)
+logger.debug('Using Gemini model: %s', GEMINI_MODEL_NAME)
 
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    partial_key = f"{GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]}" if len(GEMINI_API_KEY) > 8 else 'set'
+    logger.info('GEMINI_API_KEY loaded: yes (masked as %s)', partial_key)
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    logger.info('Gemini client initialized successfully')
 else:
-    logging.getLogger(__name__).warning('GEMINI_API_KEY or GOOGLE_API_KEY is not configured.')
+    logger.warning('GEMINI_API_KEY or GOOGLE_API_KEY is not configured.')
+    client = None
 
 
 def init_history_db():
@@ -56,7 +63,7 @@ def _ensure_disclaimer(text: str) -> str:
 
 
 def generate_healthcare_response(message: str, mode: str = 'general') -> str:
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY or not client:
         raise EnvironmentError('GEMINI_API_KEY or GOOGLE_API_KEY is missing from environment configuration')
 
     base_prompt = (
@@ -85,14 +92,25 @@ def generate_healthcare_response(message: str, mode: str = 'general') -> str:
     else:
         prompt = base_prompt + f'User query: {message}'
 
-    model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-    print('Using Gemini model:', GEMINI_MODEL_NAME)
-    response = model.generate_content(prompt)
-    print('Gemini response object:', response)
+    logger.debug('Incoming user message: %s', message)
+    logger.debug('Outgoing Gemini request prompt: %s', prompt)
 
-    if response is None or not hasattr(response, 'text'):
-        raise RuntimeError('Gemini did not return a valid response')
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt)
+            logger.debug('Raw Gemini API response: %s', response)
+            reply = response.text
+            logger.debug('Extracted reply: %s', reply)
+            break
+        except Exception as exc:
+            logger.exception('Gemini API call failed on attempt %s: %s', attempt, exc)
+            if attempt == max_retries:
+                raise RuntimeError(f'Gemini API failed after {max_retries} attempts: {exc}') from exc
+            time.sleep(2 * attempt)
 
-    reply = response.text
-    final_reply = _ensure_disclaimer(reply)
-    return final_reply
+    if not reply:
+        logger.error('Gemini returned no usable text')
+        raise RuntimeError('Gemini did not return a valid text response')
+
+    return _ensure_disclaimer(reply)

@@ -42,6 +42,21 @@ def _get_user_id_from_token():
         return None
 
 
+@chatbot_bp.route('/api/test-gemini', methods=['GET'])
+def test_gemini():
+    try:
+        reply = generate_healthcare_response("Hello")
+        return jsonify({'success': True, 'response': reply}), 200
+    except Exception as exc:
+        current_app.logger.exception('Test Gemini failed: %s', exc)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@chatbot_bp.route('/api/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'ok'}), 200
+
+
 @chatbot_bp.route('/api/chat', methods=['POST'])
 def chat():
     try:
@@ -54,29 +69,38 @@ def chat():
             try:
                 data = json.loads(raw_body) if raw_body else {}
             except json.JSONDecodeError:
-                return jsonify({'error': 'Request body must be valid JSON.'}), 400
+                return jsonify({'success': False, 'reply': 'Request body must be valid JSON.'}), 400
 
         message = str(data.get('message', '')).strip()
         session_id = data.get('sessionId')
         session_name = data.get('sessionName', 'Quick Health Chat')
         mode = data.get('mode', 'general')
 
+        current_app.logger.debug('Chat request message=%s sessionId=%s mode=%s', message, session_id, mode)
+
         if not message:
-            return jsonify({'error': 'A valid message is required.'}), 400
+            return jsonify({'success': False, 'reply': 'A valid message is required.'}), 400
 
         user_id = _get_user_id_from_token()
         if user_id and not session_id:
             session_id = create_session(user_id, session_name)
 
         save_chat_message(user_id, session_id, 'user', message)
-        reply = generate_healthcare_response(message, mode)
-        save_chat_message(user_id, session_id, 'assistant', reply)
 
-        return jsonify({'reply': reply, 'sessionId': session_id}), 200
+        try:
+            reply = generate_healthcare_response(message, mode)
+            current_app.logger.debug('AI reply generated successfully: %s', reply)
+            save_chat_message(user_id, session_id, 'assistant', reply)
+            return jsonify({'success': True, 'reply': reply, 'sessionId': session_id}), 200
+        except Exception as ai_exc:
+            current_app.logger.exception('AI generation failure: %s', ai_exc)
+            error_reply = f'AI generation failed: {str(ai_exc)}'
+            save_chat_message(user_id, session_id, 'assistant', error_reply)
+            return jsonify({'success': False, 'reply': error_reply, 'sessionId': session_id}), 500
     except Exception as exc:
-        current_app.logger.error('Chat error: %s', exc)
+        current_app.logger.exception('Chat error: %s', exc)
         traceback.print_exc()
-        return jsonify({'error': 'Unable to generate a response. Please try again.'}), 500
+        return jsonify({'success': False, 'reply': 'Unable to generate a response. Please try again.'}), 500
 
 
 @chatbot_bp.route('/api/chats', methods=['GET'])

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import api from '../services/api'
 import ChatInput from '../components/chatbot/ChatInput'
 import ChatWindow from '../components/chatbot/ChatWindow'
-import LoadingSpinner from '../components/LoadingSpinner'
 
 const INITIAL_MESSAGE = {
   id: 'welcome',
@@ -31,36 +30,56 @@ function Chatbot() {
     }
 
     setError(null)
+    const timestamp = new Date().toISOString()
     const userMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${timestamp}`,
       role: 'user',
       text: message.trim(),
-      timestamp: new Date().toISOString(),
+      timestamp,
     }
 
     setMessages((current) => [...current, userMessage])
     setLoading(true)
 
     try {
+      console.log('Chat request:', userMessage.text)
       const response = await api.post('/api/chat', { message: userMessage.text })
+      console.log('Chat response data:', response?.data)
 
-      const replyText = response?.data?.reply || 'I could not generate a response. Please try again.'
+      const replyText =
+        response?.data?.reply ||
+        response?.data?.message ||
+        'I could not generate a response. Please try again.'
+
+      const assistantTimestamp = new Date().toISOString()
       const assistantMessage = {
-        id: `assistant-${Date.now()}`,
+        id: `assistant-${assistantTimestamp}`,
         role: 'assistant',
         text: replyText,
-        timestamp: new Date().toISOString(),
+        timestamp: assistantTimestamp,
       }
 
       setMessages((current) => [...current, assistantMessage])
       setBackendError(false)
+      setError(null)
     } catch (err) {
+      console.error('Chat error:', err)
       setBackendError(true)
-      setError(
+      const fallback =
+        err?.response?.data?.reply ||
         err?.response?.data?.error ||
-          err?.message ||
-          'Unable to reach the AI assistant. Please check your backend and try again.'
-      )
+        err?.message ||
+        'Unable to reach the AI assistant. Please check your backend and try again.'
+
+      setError(fallback)
+      const fallbackTimestamp = new Date().toISOString()
+      const assistantMessage = {
+        id: `assistant-${fallbackTimestamp}`,
+        role: 'assistant',
+        text: fallback,
+        timestamp: fallbackTimestamp,
+      }
+      setMessages((current) => [...current, assistantMessage])
     } finally {
       setLoading(false)
     }

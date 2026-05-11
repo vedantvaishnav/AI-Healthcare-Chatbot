@@ -1,7 +1,9 @@
 import axios from 'axios'
 
 // Get backend URL from environment variable or use localhost as fallback
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+const BACKEND_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:5000'
+
+console.debug('[api] Backend URL:', BACKEND_URL)
 
 const api = axios.create({
   baseURL: BACKEND_URL,
@@ -25,7 +27,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (!error.response) {
-      error.message = `Backend unavailable at ${BACKEND_URL}. Make sure your backend is running and the URL is correct.`
+      error.message = `Unable to reach backend at ${BACKEND_URL}. Please check the backend server and try again.`
     }
     return Promise.reject(error)
   }
