@@ -7,11 +7,14 @@ import BMICalculator from '../components/BMICalculator'
 import HealthTracker from '../components/HealthTracker'
 import SymptomChecker from './SymptomChecker'
 import api from '../services/api'
+import LoadingSpinner from '../components/LoadingSpinner'
 
 function Dashboard() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [summary, setSummary] = useState({ sessions: 0, messages: 0, health_records: 0, bmi_history: 0, symptom_reports: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -23,10 +26,15 @@ function Dashboard() {
   useEffect(() => {
     const fetchSummary = async () => {
       try {
+        setLoading(true)
+        setError(null)
         const response = await api.get('/api/dashboard/summary')
         setSummary(response.data.summary || {})
-      } catch (error) {
-        console.error('Unable to load dashboard summary:', error)
+      } catch (err) {
+        setError(err?.message || 'Unable to load dashboard summary. Please refresh and try again.')
+        console.error('Dashboard fetch error:', err)
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -35,7 +43,26 @@ function Dashboard() {
 
   return (
     <section className="min-h-[calc(100vh-96px)] bg-slate-50 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-7xl gap-8 xl:grid-cols-[260px_1fr]">
+      {loading && (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <LoadingSpinner />
+        </div>
+      )}
+
+      {error && (
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-rose-200 bg-rose-50 p-6 text-rose-700">
+          <p className="font-semibold">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-3xl bg-rose-100 px-4 py-2 text-sm transition hover:bg-rose-200"
+          >
+            Refresh Page
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="mx-auto grid max-w-7xl gap-8 xl:grid-cols-[260px_1fr]">
         <aside className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-glass">
           <div className="mb-8 flex items-center gap-3 rounded-3xl bg-cyan-50/80 p-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-cyan-600 text-white">
@@ -155,6 +182,7 @@ function Dashboard() {
           {activeTab === 'symptoms' && <SymptomChecker />}
         </div>
       </div>
+      )}
     </section>
   )
 }

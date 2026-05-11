@@ -2,6 +2,7 @@ import { useState } from 'react'
 import api from '../services/api'
 import ChatInput from '../components/chatbot/ChatInput'
 import ChatWindow from '../components/chatbot/ChatWindow'
+import LoadingSpinner from '../components/LoadingSpinner'
 
 const INITIAL_MESSAGE = {
   id: 'welcome',
@@ -22,6 +23,7 @@ function Chatbot() {
   const [messages, setMessages] = useState([INITIAL_MESSAGE])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [backendError, setBackendError] = useState(false)
 
   const handleSend = async (message) => {
     if (!message.trim() || loading) {
@@ -51,9 +53,12 @@ function Chatbot() {
       }
 
       setMessages((current) => [...current, assistantMessage])
+      setBackendError(false)
     } catch (err) {
+      setBackendError(true)
       setError(
         err?.response?.data?.error ||
+          err?.message ||
           'Unable to reach the AI assistant. Please check your backend and try again.'
       )
     } finally {
@@ -70,6 +75,7 @@ function Chatbot() {
   const handleClearChat = () => {
     setMessages([INITIAL_MESSAGE])
     setError(null)
+    setBackendError(false)
   }
 
   return (
@@ -87,10 +93,17 @@ function Chatbot() {
               </p>
             </div>
             <div className="flex items-center gap-3 rounded-3xl bg-slate-900 px-4 py-3 text-sm text-white shadow-sm">
-              <span className="flex h-3 w-3 rounded-full bg-emerald-400" />
-              Online
+              <span className={`flex h-3 w-3 rounded-full ${backendError ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+              {backendError ? 'Offline' : 'Online'}
             </div>
           </div>
+
+          {backendError && (
+            <div className="mt-6 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+              <p className="font-semibold">Backend connection lost</p>
+              <p className="mt-2 text-xs">Please check your backend server and refresh the page.</p>
+            </div>
+          )}
 
           <div className="mt-8 space-y-3">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">Quick questions</p>
