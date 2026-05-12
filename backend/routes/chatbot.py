@@ -3,7 +3,7 @@ import traceback
 from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app, g
 
-from services.gemini_service import generate_healthcare_response
+from groq_service import generate_healthcare_response
 from services.db_service import (
     save_chat_message,
     get_sessions_for_user,
@@ -88,7 +88,7 @@ def chat():
         save_chat_message(user_id, session_id, 'user', message)
 
         try:
-            reply = generate_healthcare_response(message, mode)
+            reply = generate_healthcare_response(message)
             current_app.logger.debug('AI reply generated successfully: %s', reply)
             save_chat_message(user_id, session_id, 'assistant', reply)
             return jsonify({'success': True, 'reply': reply, 'sessionId': session_id}), 200

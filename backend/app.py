@@ -6,7 +6,6 @@ from config import GEMINI_API_KEY, SQLALCHEMY_DATABASE_URI
 from models import db
 from routes.auth import auth_bp
 from routes.chatbot import chatbot_bp
-from services.gemini_service import generate_healthcare_response
 
 logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
 
@@ -36,11 +35,11 @@ def log_request():
     app.logger.debug('Incoming request: %s %s headers=%s body=%s', request.method, request.path, dict(request.headers), body)
 
 # Test Gemini on startup
-try:
-    test_response = generate_healthcare_response("Hello")
-    app.logger.info('Gemini startup test successful: %s', test_response)
-except Exception as e:
-    app.logger.error('Gemini startup test failed: %s', e)
+# try:
+#     test_response = generate_healthcare_response("Hello")
+#     app.logger.info('Gemini startup test successful: %s', test_response)
+# except Exception as e:
+#     app.logger.error('Gemini startup test failed: %s', e)
 
 @app.route('/')
 def home():

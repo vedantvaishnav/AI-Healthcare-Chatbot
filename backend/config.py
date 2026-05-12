@@ -13,4 +13,4 @@ JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_EXP_DELTA_MINUTES = int(os.getenv('JWT_EXP_DELTA_MINUTES', '1440'))
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
-GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'models/gemini-2.5-flash')
+GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'models/gemini-2.0-flash')
