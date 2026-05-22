@@ -12,5 +12,9 @@ JWT_SECRET = os.getenv('JWT_SECRET', 'change-me-to-a-secure-secret-12345')
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_EXP_DELTA_MINUTES = int(os.getenv('JWT_EXP_DELTA_MINUTES', '1440'))
 
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_MODEL_NAME = os.getenv('GROQ_MODEL_NAME', 'llama-3.3-70b-versatile')
+
+# Legacy compatibility for older deployment references.
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
 GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'models/gemini-2.0-flash')

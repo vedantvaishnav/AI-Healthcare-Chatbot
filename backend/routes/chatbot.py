@@ -42,13 +42,13 @@ def _get_user_id_from_token():
         return None
 
 
-@chatbot_bp.route('/api/test-gemini', methods=['GET'])
-def test_gemini():
+@chatbot_bp.route('/api/test-ai', methods=['GET'])
+def test_ai():
     try:
         reply = generate_healthcare_response("Hello")
         return jsonify({'success': True, 'response': reply}), 200
     except Exception as exc:
-        current_app.logger.exception('Test Gemini failed: %s', exc)
+        current_app.logger.exception('AI test failed: %s', exc)
         return jsonify({'success': False, 'error': str(exc)}), 500
 
 
@@ -75,8 +75,17 @@ def chat():
         session_id = data.get('sessionId')
         session_name = data.get('sessionName', 'Quick Health Chat')
         mode = data.get('mode', 'general')
+        user_data = {
+            'age': data.get('age'),
+            'gender': data.get('gender'),
+            'weight': data.get('weight'),
+            'height': data.get('height'),
+            'BMI': data.get('BMI'),
+            'symptoms': data.get('symptoms') or data.get('symptom'),
+            'activity_level': data.get('activityLevel') or data.get('activity_level'),
+        }
 
-        current_app.logger.debug('Chat request message=%s sessionId=%s mode=%s', message, session_id, mode)
+        current_app.logger.debug('Chat request message=%s sessionId=%s mode=%s user_data=%s', message, session_id, mode, user_data)
 
         if not message:
             return jsonify({'success': False, 'reply': 'A valid message is required.'}), 400
@@ -88,7 +97,7 @@ def chat():
         save_chat_message(user_id, session_id, 'user', message)
 
         try:
-            reply = generate_healthcare_response(message)
+            reply = generate_healthcare_response(message, user_data)
             current_app.logger.debug('AI reply generated successfully: %s', reply)
             save_chat_message(user_id, session_id, 'assistant', reply)
             return jsonify({'success': True, 'reply': reply, 'sessionId': session_id}), 200

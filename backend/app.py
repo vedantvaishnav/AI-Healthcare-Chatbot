@@ -2,7 +2,7 @@ import logging
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from config import GEMINI_API_KEY, SQLALCHEMY_DATABASE_URI
+from config import GROQ_API_KEY, SQLALCHEMY_DATABASE_URI
 from models import db
 from routes.auth import auth_bp
 from routes.chatbot import chatbot_bp
@@ -34,12 +34,12 @@ def log_request():
     body = request.get_data(as_text=True)
     app.logger.debug('Incoming request: %s %s headers=%s body=%s', request.method, request.path, dict(request.headers), body)
 
-# Test Gemini on startup
+# Test AI on startup
 # try:
 #     test_response = generate_healthcare_response("Hello")
-#     app.logger.info('Gemini startup test successful: %s', test_response)
+#     app.logger.info('AI startup test successful: %s', test_response)
 # except Exception as e:
-#     app.logger.error('Gemini startup test failed: %s', e)
+#     app.logger.error('AI startup test failed: %s', e)
 
 @app.route('/')
 def home():
@@ -55,6 +55,6 @@ def server_error(error):
     return jsonify({'error': 'Internal server error.'}), 500
 
 if __name__ == '__main__':
-    if not GEMINI_API_KEY:
-        app.logger.warning('GEMINI_API_KEY or GOOGLE_API_KEY is not configured. Chat functionality will be limited.')
+    if not GROQ_API_KEY:
+        app.logger.warning('GROQ_API_KEY is not configured. Chat functionality will be limited.')
     app.run(debug=True)
