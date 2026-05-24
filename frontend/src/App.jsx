@@ -11,7 +11,6 @@ import Dashboard from './pages/Dashboard'
 import Chatbot from './pages/Chatbot'
 import Profile from './pages/Profile'
 import SavedChats from './pages/SavedChats'
-import SymptomChecker from './pages/SymptomChecker'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -30,7 +29,6 @@ function App() {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/saved-chats" element={<ProtectedRoute><SavedChats /></ProtectedRoute>} />
-                <Route path="/symptom-checker" element={<ProtectedRoute><SymptomChecker /></ProtectedRoute>} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="*" element={<NotFound />} />

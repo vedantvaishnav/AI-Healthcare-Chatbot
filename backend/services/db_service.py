@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from models import db, User, ChatSession, ChatMessage, HealthRecord, BmiRecord, SymptomReport
+from models import db, User, ChatSession, ChatMessage, HealthRecord, BmiRecord
 
 
 def _format_datetime(value: Optional[datetime]) -> Optional[str]:
@@ -124,10 +124,19 @@ def get_health_records(user_id: int, record_type: str = None, date: str = None) 
 
 def get_health_summary(user_id: int, date: str) -> Dict:
     summary = {}
-    record_types = ['water', 'calories', 'exercise', 'sleep']
+    record_types = ['water', 'exercise', 'sleep']
     for record_type in record_types:
         total = db.session.query(db.func.sum(HealthRecord.value)).filter_by(user_id=user_id, record_type=record_type, date=date).scalar() or 0
         summary[record_type] = float(total)
+
+    food_total = db.session.query(db.func.sum(HealthRecord.value)).filter_by(user_id=user_id, record_type='food', date=date).scalar() or 0
+    manual_calories = db.session.query(db.func.sum(HealthRecord.value)).filter_by(user_id=user_id, record_type='calories', date=date).scalar() or 0
+
+    food_total = float(food_total)
+    manual_calories = float(manual_calories)
+    summary['food'] = food_total
+    summary['calories'] = float(food_total + manual_calories)
+
     return summary
 
 
@@ -163,39 +172,10 @@ def get_bmi_history(user_id: int) -> List[Dict]:
     ]
 
 
-def save_symptom_report(user_id: int, summary_text: str, details: str, severity: str, duration: str) -> int:
-    report = SymptomReport(
-        user_id=user_id,
-        summary=summary_text,
-        details=details,
-        severity=severity,
-        duration=duration,
-    )
-    db.session.add(report)
-    db.session.commit()
-    return report.id
-
-
-def get_symptom_reports(user_id: int) -> List[Dict]:
-    reports = SymptomReport.query.filter_by(user_id=user_id).order_by(SymptomReport.created_at.desc()).all()
-    return [
-        {
-            'id': report.id,
-            'summary': report.summary,
-            'details': report.details,
-            'severity': report.severity,
-            'duration': report.duration,
-            'created_at': _format_datetime(report.created_at),
-        }
-        for report in reports
-    ]
-
-
 def get_dashboard_summary(user_id: int) -> Dict:
     return {
         'sessions': ChatSession.query.filter_by(user_id=user_id).count(),
         'messages': ChatMessage.query.filter_by(user_id=user_id).count(),
         'health_records': HealthRecord.query.filter_by(user_id=user_id).count(),
         'bmi_history': BmiRecord.query.filter_by(user_id=user_id).count(),
-        'symptom_reports': SymptomReport.query.filter_by(user_id=user_id).count(),
     }

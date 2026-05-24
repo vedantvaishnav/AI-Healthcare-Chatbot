@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api, { setAuthToken } from '../services/api'
+import { storage } from '../services/storage'
 
 const AuthContext = createContext(null)
 
@@ -49,10 +50,23 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
+    const currentUser = user
     setUser(null)
     setToken(null)
     setAuthToken(null)
     localStorage.removeItem('healthai_token')
+    // clear user-scoped local storage to avoid leaking data to next user
+    try {
+      // remove current user's keys
+      storage.removeItem('healthProfile', currentUser)
+      storage.removeItem('chatMessages', currentUser)
+      storage.removeItem('chatSessionId', currentUser)
+    } catch (e) {
+      // fallback: attempt to remove generic keys
+      try { storage.removeItem('healthProfile', 'guest') } catch (e) {}
+      try { storage.removeItem('chatMessages', 'guest') } catch (e) {}
+      try { storage.removeItem('chatSessionId', 'guest') } catch (e) {}
+    }
   }
 
   return (

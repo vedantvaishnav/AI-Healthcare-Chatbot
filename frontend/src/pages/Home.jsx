@@ -27,11 +27,6 @@ const featureData = [
     description: 'Monitor daily calorie intake with an intuitive dashboard overview.',
   },
   {
-    icon: AiOutlineHeart,
-    title: 'Symptom Checker',
-    description: 'Check common symptoms and get proactive wellness recommendations.',
-  },
-  {
     icon: MdOutlineMonitorHeart,
     title: 'Health Dashboard',
     description: 'Visualize vital metrics and recent activity in a modern layout.',
@@ -50,7 +45,7 @@ function Home() {
             Everything you need for smarter healthcare planning.
           </h2>
           <p className="mt-4 text-base leading-7 text-slate-600">
-            An AI-powered healthcare assistant that helps users with symptom guidance, diet suggestions, health tips, and basic wellness support using Gemini AI.
+            An AI-powered healthcare assistant that helps users with calorie tracking, meal planning, nutrition analysis, and daily wellness support.
           </p>
         </div>
 

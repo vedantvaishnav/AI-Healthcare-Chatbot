@@ -6,12 +6,14 @@ import {
   AiOutlineCheckCircle,
   AiOutlineWarning,
 } from 'react-icons/ai'
-import { FiActivity, FiUsers, FiDroplet, FiActivity as FiWorkout } from 'react-icons/fi'
+import { FiActivity, FiUsers, FiDroplet, FiMoon } from 'react-icons/fi'
 import { MdOutlineMonitorHeart, MdOutlineLocalFireDepartment } from 'react-icons/md'
 import BMICalculator from '../components/BMICalculator'
-import HealthTracker from '../components/HealthTracker'
-import SymptomChecker from './SymptomChecker'
+import CaloriesTracker from '../components/HealthTracker'
+import FitnessTracker from '../components/FitnessTracker'
+import DietPlanner from '../components/DietPlanner'
 import api from '../services/api'
+import { storage } from '../services/storage'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 function Dashboard() {
@@ -22,7 +24,6 @@ function Dashboard() {
     messages: 0,
     health_records: 0,
     bmi_history: 0,
-    symptom_reports: 0,
   })
   const [healthProfile, setHealthProfile] = useState({
     age: '',
@@ -39,8 +40,9 @@ function Dashboard() {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'bmi', label: 'BMI Calculator' },
-    { id: 'tracker', label: 'Health Tracker' },
-    { id: 'symptoms', label: 'Symptom Checker' },
+    { id: 'calories', label: 'Calories Tracker' },
+    { id: 'fitness', label: 'Fitness Tracker' },
+    { id: 'diet', label: 'Diet Planner' },
   ]
 
   useEffect(() => {
@@ -49,18 +51,18 @@ function Dashboard() {
         setLoading(true)
         setError(null)
 
-        // Try to fetch from API
+        // Try to fetch from API (requires auth)
         const response = await api.get('/api/dashboard/summary')
         setSummary(response.data.summary || {})
 
-        // Also load health profile from localStorage if available
-        const storedProfile = localStorage.getItem('healthProfile')
+        // Also load health profile from user-scoped localStorage if available
+        const storedProfile = storage.getItem('healthProfile', user) || storage.getItem('healthProfile', 'guest')
         if (storedProfile) {
           setHealthProfile(JSON.parse(storedProfile))
         }
       } catch (err) {
         // If API fails, still try to load from localStorage
-        const storedProfile = localStorage.getItem('healthProfile')
+        const storedProfile = storage.getItem('healthProfile', user) || storage.getItem('healthProfile', 'guest')
         if (storedProfile) {
           setHealthProfile(JSON.parse(storedProfile))
         } else {
@@ -75,7 +77,7 @@ function Dashboard() {
     }
 
     fetchSummary()
-  }, [])
+  }, [user])
 
   // Generate daily routine based on profile
   const generateDailyRoutine = () => {
@@ -143,7 +145,7 @@ function Dashboard() {
         </div>
       )}
 
-      {error && !healthProfile && (
+      {error && (
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-amber-700">
           <div className="flex items-start gap-3">
             <AiOutlineWarning className="mt-1 h-5 w-5 flex-shrink-0" />
@@ -154,6 +156,31 @@ function Dashboard() {
                 className="mt-4 rounded-3xl bg-amber-100 px-4 py-2 text-sm transition hover:bg-amber-200"
               >
                 Go to Chatbot
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && (!healthProfile?.age || !healthProfile?.metrics) && (
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 text-slate-900 shadow-lg">
+          <div className="flex flex-col gap-4">
+            <h2 className="text-2xl font-semibold">Complete your health profile</h2>
+            <p className="text-sm text-slate-600">
+              The dashboard requires your saved health profile to show personalized metrics. Please complete your health profile in the chatbot page, then return here.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => (window.location.href = '/chatbot')}
+                className="rounded-3xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700"
+              >
+                Go to Chatbot
+              </button>
+              <button
+                onClick={() => setActiveTab('bmi')}
+                className="rounded-3xl border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
+              >
+                View BMI Calculator
               </button>
             </div>
           </div>
@@ -381,22 +408,17 @@ function Dashboard() {
                     <p className="mt-4 text-3xl font-semibold text-slate-950">{summary.bmi_history}</p>
                     <p className="mt-2 text-sm text-slate-500">BMI entries saved</p>
                   </div>
-                  <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-glass">
-                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-600">
-                      Symptom Reports
-                    </p>
-                    <p className="mt-4 text-3xl font-semibold text-slate-950">{summary.symptom_reports}</p>
-                    <p className="mt-2 text-sm text-slate-500">Reports captured</p>
                   </div>
-                </div>
               </>
             )}
 
             {activeTab === 'bmi' && <BMICalculator />}
 
-            {activeTab === 'tracker' && <HealthTracker />}
+            {activeTab === 'calories' && <CaloriesTracker />}
 
-            {activeTab === 'symptoms' && <SymptomChecker />}
+            {activeTab === 'fitness' && <FitnessTracker />}
+
+            {activeTab === 'diet' && <DietPlanner />}
           </div>
         </div>
       )}

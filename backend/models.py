@@ -23,7 +23,6 @@ class User(db.Model, BaseModel):
     messages = db.relationship('ChatMessage', back_populates='user', lazy='dynamic', cascade='all, delete-orphan')
     health_records = db.relationship('HealthRecord', back_populates='user', lazy='dynamic', cascade='all, delete-orphan')
     bmi_records = db.relationship('BmiRecord', back_populates='user', lazy='dynamic', cascade='all, delete-orphan')
-    symptom_reports = db.relationship('SymptomReport', back_populates='user', lazy='dynamic', cascade='all, delete-orphan')
 
 
 class ChatSession(db.Model, BaseModel):
@@ -83,15 +82,3 @@ class BmiRecord(db.Model, BaseModel):
     user = db.relationship('User', back_populates='bmi_records')
 
 
-class SymptomReport(db.Model, BaseModel):
-    __tablename__ = 'symptom_reports'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    summary = db.Column(db.String(255), nullable=False)
-    details = db.Column(db.Text, nullable=False)
-    severity = db.Column(db.String(50), nullable=False)
-    duration = db.Column(db.String(64), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
-    user = db.relationship('User', back_populates='symptom_reports')

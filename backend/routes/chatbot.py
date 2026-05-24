@@ -1,9 +1,10 @@
 import json
+import re
 import traceback
 from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app, g
 
-from groq_service import generate_healthcare_response
+from groq_service import generate_healthcare_response, generate_food_analysis
 from services.db_service import (
     save_chat_message,
     get_sessions_for_user,
@@ -15,8 +16,6 @@ from services.db_service import (
     get_health_summary,
     save_bmi_record,
     get_bmi_history,
-    save_symptom_report,
-    get_symptom_reports,
     get_dashboard_summary,
 )
 from utils.jwt_utils import auth_required, decode_access_token
@@ -40,6 +39,27 @@ def _get_user_id_from_token():
     except Exception:
         current_app.logger.debug('Invalid auth token for support route')
         return None
+
+
+def _extract_volume_ml(value):
+    if not value:
+        return None
+    try:
+        text = str(value).lower()
+        match = re.search(r'(\d+(?:\.\d+)?)\s*(ml|milliliter|millilitre|l|liter|litre|glass|cup|bottle|bottles|cups|glasses)\b', text)
+        if match:
+            amount = float(match.group(1))
+            unit = match.group(2)
+            if unit in ('l', 'liter', 'litre', 'liters', 'litres'):
+                return int(amount * 1000)
+            if unit in ('glass', 'cup', 'cups', 'glasses'):
+                return int(amount * 250)
+            if unit in ('bottle', 'bottles'):
+                return int(amount * 500)
+            return int(amount)
+    except Exception:
+        pass
+    return None
 
 
 @chatbot_bp.route('/api/test-ai', methods=['GET'])
@@ -235,34 +255,61 @@ def health_summary():
         return jsonify({'error': 'Unable to fetch health summary.'}), 500
 
 
-@chatbot_bp.route('/api/symptoms', methods=['POST'])
+@chatbot_bp.route('/api/food-log', methods=['POST'])
 @auth_required
-def add_symptom_report():
+def log_food_items():
     try:
         user = g.current_user
-        data = request.get_json()
-        summary_text = data.get('summary')
-        details = data.get('details')
-        severity = data.get('severity')
-        duration = data.get('duration')
+        data = request.get_json() or {}
+        items = data.get('items')
+        goal = data.get('goal', 'maintenance')
+        date = data.get('date') or datetime.utcnow().date().isoformat()
+        maintenance_calories = data.get('maintenance')
 
-        if not summary_text or not details or not severity:
-            return jsonify({'error': 'Summary, details, and severity are required.'}), 400
+        if not items:
+            return jsonify({'error': 'A list of food items is required.'}), 400
 
-        report_id = save_symptom_report(user['id'], summary_text, details, severity, duration or '')
-        return jsonify({'id': report_id, 'message': 'Symptom report saved successfully.'}), 201
+        analysis = generate_food_analysis(items, goal, maintenance_calories)
+        item_list = analysis.get('items') if isinstance(analysis, dict) else []
+
+        saved_count = 0
+        for item in item_list:
+            record_type = 'food'
+            calories = 0
+            unit = 'kcal'
+            volume_ml = None
+
+            try:
+                calories = float(item.get('calories', 0))
+            except (TypeError, ValueError):
+                calories = 0
+
+            if str(item.get('item_type', '')).lower() == 'water' or str(item.get('food', '')).strip().lower() == 'water':
+                record_type = 'water'
+                unit = 'ml'
+                volume_ml = _extract_volume_ml(item.get('volume_ml') or item.get('quantity') or item.get('food'))
+                if volume_ml is None:
+                    volume_ml = 250
+
+            notes = json.dumps({
+                'description': item.get('description') or item.get('food') or item.get('item', ''),
+                'quantity': item.get('quantity'),
+                'protein': item.get('protein'),
+                'carbs': item.get('carbs'),
+                'fats': item.get('fats'),
+                'item_type': item.get('item_type'),
+                'volume_ml': volume_ml,
+            })
+
+            save_value = volume_ml if record_type == 'water' else calories
+            save_health_record(user['id'], record_type, save_value, unit, date, notes)
+            saved_count += 1
+
+        return jsonify({'analysis': analysis, 'saved': saved_count}), 201
     except Exception as exc:
-        current_app.logger.error('Symptom report save error: %s', exc)
+        current_app.logger.error('Food log error: %s', exc)
         traceback.print_exc()
-        return jsonify({'error': 'Unable to save symptom report.'}), 500
-
-
-@chatbot_bp.route('/api/symptoms', methods=['GET'])
-@auth_required
-def list_symptom_reports():
-    user = g.current_user
-    reports = get_symptom_reports(user['id'])
-    return jsonify({'reports': reports}), 200
+        return jsonify({'error': 'Unable to log food items.'}), 500
 
 
 @chatbot_bp.route('/api/dashboard/summary', methods=['GET'])

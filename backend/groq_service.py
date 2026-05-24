@@ -5,6 +5,7 @@ from health_engine import (
     generate_diet_plan, generate_exercise_recommendation, generate_home_remedies,
     calculate_sleep_recommendation, get_food_calories
 )
+import json
 import re
 from textwrap import dedent
 
@@ -174,3 +175,195 @@ def generate_healthcare_response(user_message, user_data=None):
     # If too short or too long, add a brief adjustment note (keep concise)
     # Note: we avoid heavy edits to content; prefer prompting the model correctly above.
     return ai_response
+
+
+def _extract_json_response(raw_text):
+    if not raw_text:
+        return None
+    raw_text = raw_text.strip()
+    json_match = re.search(r'\{.*\}$', raw_text, re.DOTALL)
+    if json_match:
+        raw_text = json_match.group(0)
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        try:
+            start = raw_text.index('{')
+            end = raw_text.rindex('}') + 1
+            return json.loads(raw_text[start:end])
+        except Exception:
+            return None
+
+
+def _extract_number(value, default=0.0):
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        text = str(value).strip().replace(',', '')
+        match = re.search(r'-?\d+(?:\.\d+)?', text)
+        if match:
+            return float(match.group(0))
+    except Exception:
+        pass
+    return default
+
+
+def _extract_volume_ml(text):
+    if not text:
+        return None
+    text_l = text.lower()
+    match = re.search(r'(\d+(?:\.\d+)?)\s*(ml|milliliter|millilitre|l|liter|litre|glass|cup|bottle|bottles|cups|glasses)\b', text_l)
+    if match:
+        amount = float(match.group(1))
+        unit = match.group(2)
+        if unit in ('l', 'liter', 'litre', 'liters', 'litres'):
+            return int(amount * 1000)
+        if unit in ('glass', 'cup', 'cups', 'glasses'):
+            return int(amount * 250)
+        if unit in ('bottle', 'bottles'):
+            return int(amount * 500)
+        return int(amount)
+    return None
+
+
+def _detect_item_type(label):
+    if not label:
+        return 'food'
+    text = str(label).lower()
+    if 'water' in text and not any(word in text for word in ['juice', 'coffee', 'tea', 'smoothie', 'milkshake', 'cola', 'soda', 'beer', 'wine']):
+        return 'water'
+    if any(word in text for word in ['juice', 'coffee', 'tea', 'smoothie', 'latte', 'milkshake', 'cola', 'soda', 'beer', 'wine']):
+        return 'drink'
+    return 'food'
+
+
+def _normalize_food_item(item, original_line=None):
+    if not item or not isinstance(item, dict):
+        return {}
+    normalized = {}
+    for key in ['food', 'description', 'quantity', 'note', 'item_type', 'volume_ml']:
+        value = item.get(key)
+        if isinstance(value, dict):
+            if value.get('food') or value.get('description'):
+                normalized[key] = str(value.get('food') or value.get('description'))
+            elif value.get('value') is not None:
+                normalized[key] = str(value.get('value'))
+            else:
+                normalized[key] = json.dumps(value)
+        elif value is not None:
+            normalized[key] = str(value)
+
+    normalized['food'] = normalized.get('food') or normalized.get('description') or (str(item.get('item')) if item.get('item') else None) or original_line
+    normalized['item_type'] = normalized.get('item_type') or _detect_item_type(normalized['food'])
+    normalized['volume_ml'] = normalized.get('volume_ml') or _extract_volume_ml(normalized.get('quantity') or normalized.get('food') or original_line)
+
+    normalized['calories'] = _extract_number(item.get('calories'), 0)
+    normalized['protein'] = _extract_number(item.get('protein'), None)
+    normalized['carbs'] = _extract_number(item.get('carbs'), None)
+    normalized['fats'] = _extract_number(item.get('fats'), None)
+
+    if normalized['item_type'] == 'water':
+        normalized['calories'] = 0
+        normalized['volume_ml'] = normalized['volume_ml'] or 250
+        normalized['quantity'] = normalized['quantity'] or f"{int(normalized['volume_ml'])} ml"
+
+    if normalized['volume_ml']:
+        normalized['volume_ml'] = int(normalized['volume_ml'])
+
+    return normalized
+
+
+def generate_food_analysis(items, goal='maintenance', maintenance_calories=None):
+    if not items:
+        return {'items': [], 'total_calories': 0, 'goal_target': 0, 'remaining_calories': 0, 'suggestions': []}
+
+    if isinstance(items, str):
+        items_list = [line.strip() for line in items.split('\n') if line.strip()]
+    elif isinstance(items, (list, tuple)):
+        items_list = [str(item).strip() for item in items if str(item).strip()]
+    else:
+        items_list = [str(items).strip()]
+
+    try:
+        maintenance_value = float(maintenance_calories) if maintenance_calories else 2200.0
+    except (TypeError, ValueError):
+        maintenance_value = 2200.0
+
+    goal_key = str(goal or 'maintenance').strip().lower()
+    if goal_key == 'weight_gain':
+        goal_target = round(maintenance_value * 1.2)
+    elif goal_key == 'weight_loss':
+        goal_target = round(maintenance_value * 0.8)
+    else:
+        goal_target = round(maintenance_value)
+
+    prompt = dedent(f"""
+    You are a nutrition analysis assistant. The user consumed the following foods and drinks today:
+    {json.dumps(items_list, indent=2)}
+
+    Output a valid JSON object only, with these keys:
+    - items: array of objects with keys food, quantity, calories, protein, carbs, fats, note, item_type, volume_ml
+    - total_calories: sum of calories
+    - goal_target: daily calorie target for the user's goal
+    - remaining_calories: calories still needed to reach the goal (goal_target - total_calories, minimum 0)
+    - suggestions: array of 4 healthy food suggestions to complete the remaining calories.
+
+    For drink items, set item_type to "drink".
+    For water entries, set item_type to "water", calories to 0, and volume_ml to the estimated amount in milliliters.
+    If quantity is available, include it. Use Indian food examples where possible.
+    For 'weight_gain', suggest calorie-dense healthy foods.
+    For 'weight_loss', suggest low-calorie high-protein foods.
+    For 'maintenance', suggest balanced meals.
+    Include kcal estimates, and keep all values realistic.
+    Do not include any explanation outside the JSON.
+    """)
+
+    prompt = prompt + f"\nUser goal: {goal_key}\nDaily maintenance estimate: {int(maintenance_value)} kcal\n"
+
+    response = client.chat.completions.create(
+        model=GROQ_MODEL_NAME,
+        messages=[{'role': 'user', 'content': prompt}],
+        temperature=0.25,
+        max_tokens=800
+    )
+
+    raw_output = response.choices[0].message.content
+    parsed = _extract_json_response(raw_output)
+    if not isinstance(parsed, dict):
+        parsed = {
+            'items': [],
+            'total_calories': 0,
+            'goal_target': goal_target,
+            'remaining_calories': goal_target,
+            'suggestions': []
+        }
+
+    parsed.setdefault('items', [])
+    parsed.setdefault('total_calories', 0)
+    parsed.setdefault('goal_target', goal_target)
+    parsed.setdefault('remaining_calories', max(goal_target - parsed.get('total_calories', 0), 0))
+    parsed.setdefault('suggestions', [])
+
+    normalized_items = []
+    for idx, raw_item in enumerate(parsed['items']):
+        original_line = items_list[idx] if idx < len(items_list) else None
+        normalized_items.append(_normalize_food_item(raw_item, original_line))
+
+    water_lines = [line for line in items_list if 'water' in line.lower() and not any(keyword in line.lower() for keyword in ['juice', 'coffee', 'tea', 'smoothie', 'milkshake', 'cola', 'soda', 'beer', 'wine'])]
+    if water_lines and not any(item.get('item_type') == 'water' for item in normalized_items):
+        for line in water_lines:
+            normalized_items.append(_normalize_food_item({
+                'food': 'Water',
+                'quantity': f"{_extract_volume_ml(line) or 250} ml",
+                'calories': 0,
+                'item_type': 'water',
+                'volume_ml': _extract_volume_ml(line) or 250,
+            }, line))
+
+    parsed['items'] = normalized_items
+    parsed['total_calories'] = sum(item.get('calories', 0) for item in normalized_items)
+    parsed['remaining_calories'] = max(goal_target - parsed['total_calories'], 0)
+
+    return parsed

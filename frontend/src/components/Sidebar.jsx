@@ -15,13 +15,13 @@ function Sidebar({ sessions, onSessionSelect, onQuickPrompt }) {
     <aside className="space-y-6 rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-glass">
       <div className="rounded-[2rem] bg-cyan-50 p-5">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-600">Healthcare Workspace</p>
-        <p className="mt-4 text-sm text-slate-700">Use the sidebar for quick symptom prompts, saved sessions, and wellness tips.</p>
+        <p className="mt-4 text-sm text-slate-700">Use the sidebar for quick nutrition prompts, saved sessions, and wellness tips.</p>
       </div>
 
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">Quick actions</p>
         <div className="mt-4 space-y-3">
-          {['Check symptoms', 'Suggest disease', 'First aid', 'Emergency warning'].map((label) => (
+          {['Log a meal', 'Nutrition advice', 'Hydration tips', 'Wellness reminder'].map((label) => (
             <button
               key={label}
               type="button"

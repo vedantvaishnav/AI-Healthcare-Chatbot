@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AiOutlineUser, AiOutlineCheckCircle } from 'react-icons/ai'
 
-function HealthProfileForm({ onProfileSubmit, initialData = {} }) {
+function HealthProfileForm({ onProfileSubmit, initialData = {}, startExpanded = false }) {
   const [formData, setFormData] = useState({
     age: initialData.age || '',
     gender: initialData.gender || '',
@@ -19,7 +19,12 @@ function HealthProfileForm({ onProfileSubmit, initialData = {} }) {
     sleep: null,
   })
 
-  const [isExpanded, setIsExpanded] = useState(!initialData.age)
+  const [isExpanded, setIsExpanded] = useState(startExpanded || !initialData.age)
+
+  // respond to explicit startExpanded prop changes (e.g., open when editing)
+  useEffect(() => {
+    if (startExpanded) setIsExpanded(true)
+  }, [startExpanded])
 
   const activityLevels = [
     { value: 'sedentary', label: 'Sedentary (little exercise)' },
@@ -96,7 +101,41 @@ function HealthProfileForm({ onProfileSubmit, initialData = {} }) {
       sleep = ageVal < 18 ? 9 : ageVal > 65 ? 7 : 8
     }
 
-    water = Math.round((weightVal * 0.03 * 100) / 100 * 10) / 10
+    // Dynamic water calculation (ml)
+    // Base: 35 ml per kg of body weight
+    try {
+      const baseMl = weightVal * 35
+
+      const activityAdjustments = {
+        sedentary: 0.0,
+        light: 0.05,
+        moderate: 0.1,
+        active: 0.15,
+        very_active: 0.2,
+      }
+      const activityAdj = activityAdjustments[activityLevel] || 0.1
+
+      const goalAdjustments = {
+        maintenance: 0.0,
+        weight_loss: 0.0,
+        weight_gain: 0.1,
+      }
+      const goalAdj = goalAdjustments[fitnessGoal] || 0.0
+
+      let ageAdj = 0.0
+      const ageVal = parseInt(age)
+      if (!isNaN(ageVal)) {
+        if (ageVal < 18) ageAdj = 0.05
+        else if (ageVal >= 65) ageAdj = -0.1
+      }
+
+      let totalMl = baseMl * (1 + activityAdj + goalAdj + ageAdj)
+      if (totalMl < 500) totalMl = 500
+      const liters = Math.round((totalMl / 1000) * 10) / 10
+      water = liters
+    } catch (e) {
+      water = null
+    }
 
     setMetrics({
       bmi: bmiRounded,
@@ -130,9 +169,7 @@ function HealthProfileForm({ onProfileSubmit, initialData = {} }) {
       metrics,
     }
 
-    // Save to localStorage for dashboard
-    localStorage.setItem('healthProfile', JSON.stringify(profileData))
-
+    // Delegate persistence to parent (Chatbot or caller)
     onProfileSubmit(profileData)
 
     setIsExpanded(false)

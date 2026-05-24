@@ -41,7 +41,7 @@ function Footer() {
           <div>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">About</h3>
             <p className="text-sm leading-6 text-slate-300">
-              HealthAI Assistant is an AI-powered healthcare platform providing personalized diet suggestions, symptom analysis, and wellness tracking.
+              HealthAI Assistant is an AI-powered healthcare platform providing personalized diet suggestions, nutrition insights, and wellness tracking.
             </p>
           </div>
 
